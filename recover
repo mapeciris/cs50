@@ -1,0 +1,75 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+int main(int argc, char *argv[])
+{
+    // ensure proper usage
+    if (argc != 2)
+    {
+        fprintf(stderr, "Usage: ./recover image\n");
+        return 1;
+    }
+    
+    // open input file
+    FILE *raw_file = fopen(argv[1], "r");
+    if (raw_file == NULL)
+    {
+        fprintf(stderr, "Could not open %s.\n", argv[1]);
+        return 2;
+    }
+    
+    // create a counter for the filename and a file for manipulating the images
+    int i = 0;
+    FILE *img;
+    
+    // read infile's blocks
+    uint8_t buffer[513];    
+    while (fread(&buffer, 1, 512, raw_file) == 512)
+    {
+        
+        // check if the block header is the JPEG type
+        if (buffer[0] == 0xff && buffer[1] == 0xd8 
+            && buffer[2] == 0xff && (buffer[3] & 0xf0) == 0xe0)
+        {
+            
+            // closes the jpeg file if it was open
+            if (i > 0)
+            {
+                fclose(img);
+            }
+            
+            // creates new jpeg file
+            char filename[8];
+            sprintf(filename, "%03i.jpg", i);
+            img = fopen(filename, "w");
+            
+            // increase the counter of the filename
+            i++;
+            
+            // ensures that we can create the jpeg file
+            if (img == NULL)
+            {
+                fprintf(stderr, "Could not create %s.\n", filename);
+                fclose(raw_file);
+                return 3;
+            }
+            
+            // writes the first block
+            fwrite(&buffer, 1, 512, img);
+        }
+        else
+        {
+            // writes the rest of the blocks into the jpeg file
+            if (i != 0)
+            {
+                fwrite(&buffer, 1, 512, img);
+            }
+        }
+    } 
+    
+    // close infile and last outfile
+    fclose(raw_file);
+    fclose(img);
+    return 0;
+}
